@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strings"
 	"time"
 
 	"gostripe/models"
@@ -48,9 +49,6 @@ func (a *API) CreateCheckoutSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Utiliser directement l'ID de prix fourni par le frontend
-	priceID := req.PriceID
-
 	// Get user ID from context
 	userID, err := getUserID(r.Context())
 	if err != nil {
@@ -79,6 +77,8 @@ func (a *API) CreateCheckoutSession(w http.ResponseWriter, r *http.Request) {
 			Email: stripe.String(email),
 			Name:  stripe.String(req.CustomerName),
 		}
+		// Ajouter les métadonnées
+		customerParams.AddMetadata("user_id", userID.String())
 		// Use the customer package from Stripe
 		stripeCustomer, err := customer.New(customerParams)
 		if err != nil {
@@ -100,6 +100,16 @@ func (a *API) CreateCheckoutSession(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create checkout session
+	// Modifier l'URL de succès pour inclure l'ID de session
+	successURL := req.SuccessURL
+	if successURL != "" {
+		if !strings.Contains(successURL, "?") {
+			successURL += "?session_id={CHECKOUT_SESSION_ID}"
+		} else {
+			successURL += "&session_id={CHECKOUT_SESSION_ID}"
+		}
+	}
+
 	params := &stripe.CheckoutSessionParams{
 		Customer: stripe.String(stripeCustomerID),
 		PaymentMethodTypes: stripe.StringSlice([]string{
@@ -107,15 +117,26 @@ func (a *API) CreateCheckoutSession(w http.ResponseWriter, r *http.Request) {
 		}),
 		LineItems: []*stripe.CheckoutSessionLineItemParams{
 			{
-				Price:    stripe.String(priceID),
+				Price:    stripe.String(req.PriceID),
 				Quantity: stripe.Int64(1),
 			},
 		},
 		Mode:       stripe.String(string(stripe.CheckoutSessionModeSubscription)),
-		SuccessURL: stripe.String(req.SuccessURL),
+		SuccessURL: stripe.String(successURL),
 		CancelURL:  stripe.String(req.CancelURL),
+		ClientReferenceID: stripe.String(userID.String()),
+		CustomerEmail: nil, // Using Customer ID instead
+		AllowPromotionCodes: stripe.Bool(true),
 	}
 
+	// Ajouter les métadonnées
+	params.AddMetadata("user_id", userID.String())
+
+	// Ajouter les données d'abonnement
+	params.SubscriptionData = &stripe.CheckoutSessionSubscriptionDataParams{}
+	params.SubscriptionData.AddMetadata("user_id", userID.String())
+
+	// Create the session using the Stripe API
 	s, err := session.New(params)
 	if err != nil {
 		logrus.WithError(err).Error("Failed to create checkout session")
@@ -123,7 +144,7 @@ func (a *API) CreateCheckoutSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Retourner l'ID de session et l'URL complète pour faciliter la redirection
+	// Return both session ID and URL for easier client integration
 	sendJSON(w, http.StatusOK, map[string]string{
 		"session_id": s.ID,
 		"url":        s.URL,

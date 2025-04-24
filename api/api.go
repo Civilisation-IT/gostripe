@@ -63,6 +63,8 @@ func NewAPIWithVersion(ctx context.Context, globalConfig *conf.GlobalConfigurati
 	r.Post("/webhooks", api.HandleWebhook)
 	r.Get("/get-subscription-status", api.requireAuthentication(api.GetSubscriptionStatus))
 	r.Post("/cancel-subscription", api.requireAuthentication(api.CancelSubscription))
+	r.Get("/get-customer-details", api.requireAuthentication(api.GetCustomerDetails))
+	r.Post("/sync-subscription", api.requireAuthentication(api.SyncSubscription))
 
 	api.handler = r
 

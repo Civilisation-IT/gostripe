@@ -48,6 +48,9 @@ func (a *API) CreateCheckoutSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Utiliser directement l'ID de prix fourni par le frontend
+	priceID := req.PriceID
+
 	// Get user ID from context
 	userID, err := getUserID(r.Context())
 	if err != nil {
@@ -104,7 +107,7 @@ func (a *API) CreateCheckoutSession(w http.ResponseWriter, r *http.Request) {
 		}),
 		LineItems: []*stripe.CheckoutSessionLineItemParams{
 			{
-				Price:    stripe.String(req.PriceID),
+				Price:    stripe.String(priceID),
 				Quantity: stripe.Int64(1),
 			},
 		},
@@ -120,8 +123,10 @@ func (a *API) CreateCheckoutSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Retourner l'ID de session et l'URL complète pour faciliter la redirection
 	sendJSON(w, http.StatusOK, map[string]string{
 		"session_id": s.ID,
+		"url":        s.URL,
 	})
 }
 

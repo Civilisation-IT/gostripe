@@ -1,6 +1,7 @@
 package models
 
 import (
+	"log"
 	"time"
 
 	"gostripe/storage"
@@ -73,6 +74,9 @@ func FindActiveSubscriptionByCustomerID(conn *storage.Connection, customerID uui
 
 // CreateSubscription creates a new subscription
 func CreateSubscription(conn *storage.Connection, customerID uuid.UUID, stripeID, priceID string, status SubscriptionStatus, currentPeriodEnd time.Time) (*Subscription, error) {
+	log.Printf("CreateSubscription: Début de la création d'un abonnement - customerID: %s, stripeID: %s, priceID: %s, status: %s", 
+		customerID.String(), stripeID, priceID, status)
+
 	subscription := &Subscription{
 		ID:               uuid.Must(uuid.NewV4()),
 		CustomerID:       customerID,
@@ -84,10 +88,15 @@ func CreateSubscription(conn *storage.Connection, customerID uuid.UUID, stripeID
 		UpdatedAt:        time.Now(),
 	}
 
+	log.Printf("CreateSubscription: Tentative d'insertion en DB - ID: %s, StripeID: %s, CustomerID: %s", 
+		subscription.ID.String(), subscription.StripeID, subscription.CustomerID.String())
+
 	if err := conn.Create(subscription); err != nil {
+		log.Printf("CreateSubscription: ERREUR lors de la création de l'abonnement: %v", err)
 		return nil, err
 	}
 
+	log.Printf("CreateSubscription: Abonnement créé avec succès - ID: %s", subscription.ID.String())
 	return subscription, nil
 }
 

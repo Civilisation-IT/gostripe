@@ -1,6 +1,7 @@
 package models
 
 import (
+	"log"
 	"time"
 
 	"gostripe/storage"
@@ -51,6 +52,10 @@ func FindCustomerByStripeID(conn *storage.Connection, stripeID string) (*Custome
 
 // CreateCustomer creates a new customer
 func CreateCustomer(conn *storage.Connection, userID uuid.UUID, stripeID, email, name string) (*Customer, error) {
+	// Log au début de la fonction pour voir les paramètres
+	log.Printf("CreateCustomer: Début de la création du client - userID: %s, stripeID: %s, email: %s, name: %s",
+		userID.String(), stripeID, email, name)
+
 	customer := &Customer{
 		ID:        uuid.Must(uuid.NewV4()),
 		UserID:    userID,
@@ -61,8 +66,23 @@ func CreateCustomer(conn *storage.Connection, userID uuid.UUID, stripeID, email,
 		UpdatedAt: time.Now(),
 	}
 
+	// Log des détails de l'objet avant insertion
+	log.Printf("CreateCustomer: Tentative d'insertion en DB - ID: %s, UserID: %s, StripeID: %s",
+		customer.ID.String(), customer.UserID.String(), customer.StripeID)
+
 	if err := conn.Create(customer); err != nil {
+		log.Printf("CreateCustomer: ERREUR lors de la création du client: %v", err)
 		return nil, err
+	}
+
+	// Vérifier que le client a bien été créé en le recherchant
+	verifyCustomer, err := FindCustomerByUserID(conn, userID)
+	if err != nil {
+		log.Printf("CreateCustomer: Le client a été créé mais impossible de le vérifier: %v", err)
+	} else if verifyCustomer == nil {
+		log.Printf("CreateCustomer: ATTENTION - Le client a été créé mais la vérification n'a pas pu le retrouver")
+	} else {
+		log.Printf("CreateCustomer: Client créé et vérifié avec succès - ID: %s", customer.ID.String())
 	}
 
 	return customer, nil
